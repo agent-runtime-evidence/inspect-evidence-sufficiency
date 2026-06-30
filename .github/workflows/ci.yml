@@ -51,7 +51,7 @@ jobs:
         run: PYTHONPATH=src python -m unittest discover -s tests -v
       - name: Smoke — generate a real Inspect log (mockllm) and card it
         run: |
-          cat > /tmp/mini_task.py <<'PY'
+          cat > ci_mini_task.py <<'PY'
           from inspect_ai import Task, task
           from inspect_ai.dataset import Sample
           from inspect_ai.scorer import includes
@@ -65,8 +65,8 @@ jobs:
                   scorer=includes(),
               )
           PY
-          inspect eval /tmp/mini_task.py --model mockllm/model --log-format json --log-dir /tmp/inspect-logs
-          LOG=$(ls /tmp/inspect-logs/*.json | head -1)
+          inspect eval ci_mini_task.py --model mockllm/model --log-format json --log-dir ci-logs
+          LOG=$(ls ci-logs/*.json | head -1)
           PYTHONPATH=src python -m inspect_evidence_sufficiency "$LOG" \
             --source-url "inspect-log://ci" \
             --release-decision "Can this eval support an engineering review gate?" \
