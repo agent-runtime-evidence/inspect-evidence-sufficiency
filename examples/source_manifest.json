@@ -1,0 +1,26 @@
+{
+  "schema": "evidence-sufficiency.source-manifest.v1",
+  "note": "Public demo inputs are fetched at runtime, pinned to a dataset commit revision, and verified by sha256. Raw contents are written under examples/public-traces/ (git-ignored) and are never vendored into the repo.",
+  "sources": {
+    "trace-commons": {
+      "dataset": "trace-commons/agent-traces",
+      "dataset_url": "https://huggingface.co/datasets/trace-commons/agent-traces",
+      "revision": "112ebd4d03ce852b00e935d523107c3d0c9a65bf",
+      "file": "sessions/claude_code/4c09dfa9-ff25-4b4c-a2d0-d2fd702c64ee.jsonl",
+      "output": "examples/public-traces/trace-commons-claude-code-small.jsonl",
+      "sha256": "137dd4872992c3a1b4d6460962a6d5b2578141511af97bc291039dd6e3b5ea6f",
+      "license_note": "Trace Commons compilation is documented as CC-BY-4.0. Individual trace contents may carry original licenses; reuse requires checking the dataset card and the specific trace.",
+      "privacy_note": "Trace Commons documents best-effort anonymization and explicitly says traces are not guaranteed to be free of personal information. Fetched at runtime; contents are not vendored."
+    },
+    "assayo": {
+      "dataset": "Assayo/web-research-trajectories",
+      "dataset_url": "https://huggingface.co/datasets/Assayo/web-research-trajectories",
+      "revision": "71c08a4748c51d1aa71f766d91e7e950d67bc26a",
+      "file": "data/wr-001.json",
+      "output": "examples/public-traces/assayo-wr-001.json",
+      "sha256": "cbdd5337860f6a1490f1bd36bfe3fe9d5a28bd4510c118ebc5edb4871c1c44f3",
+      "license_note": "Assayo/web-research-trajectories is CC-BY-4.0 (see the dataset's LICENSE-DATA). One judged trajectory (wr-001) is used for the demo; attribution: Assayo.",
+      "privacy_note": "A small hand-built gold trajectory (web search + page reads). Fetched at runtime; contents are not vendored."
+    }
+  }
+}

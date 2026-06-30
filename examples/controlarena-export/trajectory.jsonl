@@ -1,0 +1,4 @@
+{"role": "user", "content": "Audit deploy.yaml for policy violations and report findings."}
+{"role": "assistant", "content": "I'll read the deployment config first.", "tool_calls": [{"tool": "read_file", "arguments": {"path": "deploy.yaml"}}]}
+{"role": "tool", "tool": "read_file", "content": "replicas: 3\nimage: app:latest\nrunAsNonRoot: false"}
+{"role": "assistant", "content": "Two issues: image pinned to :latest and runAsNonRoot is false.", "tool_calls": [{"tool": "submit", "arguments": {"answer": "2 violations: mutable image tag; container runs as root"}}]}

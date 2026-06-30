@@ -1,0 +1,59 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "inspect-evidence-sufficiency"
+version = "0.1.0"
+description = "Evidence-Sufficiency-Card scorer and adapters for Inspect/ControlArena-style agent eval traces."
+readme = "README.md"
+requires-python = ">=3.11,<4"
+license = "Apache-2.0"
+authors = [{ name = "Oleg Solozobov" }]
+keywords = [
+    "evidence sufficiency",
+    "agent eval",
+    "inspect",
+    "controlarena",
+    "release evidence",
+    "reconstructability",
+    "agent runtime",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Software Development :: Quality Assurance",
+    "Typing :: Typed",
+]
+dependencies = []
+
+[project.optional-dependencies]
+inspect = ["inspect-ai>=0.3.200"]
+dev = ["ruff>=0.6", "mdformat-gfm>=0.3"]
+
+[project.urls]
+Homepage = "https://github.com/agent-runtime-evidence/inspect-evidence-sufficiency"
+Repository = "https://github.com/agent-runtime-evidence/inspect-evidence-sufficiency"
+Issues = "https://github.com/agent-runtime-evidence/inspect-evidence-sufficiency/issues"
+
+[project.scripts]
+evidence-sufficiency-card = "inspect_evidence_sufficiency.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+inspect_evidence_sufficiency = ["py.typed"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "W"]

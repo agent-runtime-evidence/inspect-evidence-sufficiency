@@ -1,0 +1,11 @@
+/.pytest_cache/
+/__pycache__/
+/**/*.pyc
+/.venv/
+/build/
+/dist/
+/**/*.egg-info/
+/out/
+/examples/public-traces/
+
+/.private/

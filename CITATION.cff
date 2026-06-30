@@ -1,0 +1,40 @@
+cff-version: 1.2.0
+message: "If you use inspect-evidence-sufficiency in your research, please cite this software artifact."
+title: "inspect-evidence-sufficiency: An Evidence-Sufficiency-Card scorer for Inspect/ControlArena-style agent eval traces"
+authors:
+  - family-names: "Solozobov"
+    given-names: "Oleg"
+    orcid: "https://orcid.org/0009-0009-0105-7459"
+version: "0.1.0"
+date-released: "2026-06-30"
+license: Apache-2.0
+license-url: "https://www.apache.org/licenses/LICENSE-2.0"
+url: "https://github.com/agent-runtime-evidence/inspect-evidence-sufficiency"
+repository-code: "https://github.com/agent-runtime-evidence/inspect-evidence-sufficiency"
+# doi / identifiers: added after the first Zenodo release (concept DOI + per-version DOI),
+# minted via the Zenodo<->GitHub integration on the first tagged Release.
+type: software
+keywords:
+  - "evidence sufficiency"
+  - "agent eval"
+  - "Inspect"
+  - "ControlArena"
+  - "release evidence"
+  - "reconstructability"
+  - "agent runtime"
+  - "decision evidence"
+  - "AI governance"
+abstract: >-
+  inspect-evidence-sufficiency turns an agent eval trace into an
+  Evidence-Sufficiency-Card: a reviewer-facing report of which evidence fields
+  are present, partial, or missing before an eval result is used as release
+  evidence, reproducible byte-for-byte given fixed inputs and a pinned timestamp. It reads Inspect-style logs, ControlArena trajectory
+  exports, and generic agent trace JSON/JSONL, and scores twelve evidence fields
+  (eval objective and release decision, task/dataset scope, model/provider
+  binding, prompt/scaffold/policy identity, tools and permissions, raw
+  messages/events/tool calls, scorer and monitor identity, retries/errors,
+  transcript and replay handle, counterfactual replay, leakage and
+  reward-hacking checks, and an explicit not-sufficient-for statement) into a
+  conservative verdict. The artifact is evidence-bound: it reports which
+  evidence a trace contains, never model quality, benchmark validity, safety, or
+  audit/compliance sufficiency.

@@ -1,0 +1,7 @@
+{
+  "tools": [
+    {"name": "read_file", "description": "Read the contents of a file at a path."},
+    {"name": "run_command", "description": "Run a shell command in the sandbox."},
+    {"name": "submit", "description": "Submit the final answer."}
+  ]
+}

@@ -1,0 +1,74 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e ".[dev]"
+      - name: Ruff lint
+        run: ruff check .
+      - name: Ruff format check
+        run: ruff format --check .
+      - name: Markdown format check (no-wrap)
+        run: mdformat --check $(git ls-files '*.md')
+
+  offline:
+    # Stdlib-only: no third-party deps. The Inspect e2e test auto-skips here.
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Offline verify (test + offline demos, no network)
+        run: make verify
+
+  inspect:
+    # Installs inspect-ai so the real Inspect scorer is exercised end-to-end,
+    # and regenerates a real Inspect eval log from mockllm (no API key).
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install with the inspect extra
+        run: pip install -e ".[inspect]"
+      - name: Full test suite (Inspect scorer e2e runs)
+        run: PYTHONPATH=src python -m unittest discover -s tests -v
+      - name: Smoke — generate a real Inspect log (mockllm) and card it
+        run: |
+          cat > /tmp/mini_task.py <<'PY'
+          from inspect_ai import Task, task
+          from inspect_ai.dataset import Sample
+          from inspect_ai.scorer import includes
+          from inspect_ai.solver import generate
+
+          @task
+          def mini():
+              return Task(
+                  dataset=[Sample(input="Say the word ready.", target="ready")],
+                  solver=generate(),
+                  scorer=includes(),
+              )
+          PY
+          inspect eval /tmp/mini_task.py --model mockllm/model --log-format json --log-dir /tmp/inspect-logs
+          LOG=$(ls /tmp/inspect-logs/*.json | head -1)
+          PYTHONPATH=src python -m inspect_evidence_sufficiency "$LOG" \
+            --source-url "inspect-log://ci" \
+            --release-decision "Can this eval support an engineering review gate?" \
+            --eval-objective "CI smoke over a real Inspect log." \
+            --format summary
