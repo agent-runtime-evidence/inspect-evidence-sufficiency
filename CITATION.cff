@@ -11,8 +11,14 @@ license: Apache-2.0
 license-url: "https://www.apache.org/licenses/LICENSE-2.0"
 url: "https://github.com/agent-runtime-evidence/inspect-evidence-sufficiency"
 repository-code: "https://github.com/agent-runtime-evidence/inspect-evidence-sufficiency"
-# doi / identifiers: added after the first Zenodo release (concept DOI + per-version DOI),
-# minted via the Zenodo<->GitHub integration on the first tagged Release.
+doi: "10.5281/zenodo.21055696"
+identifiers:
+  - type: doi
+    value: "10.5281/zenodo.21055696"
+    description: "Concept DOI (latest version, auto-tracks)"
+  - type: doi
+    value: "10.5281/zenodo.21055697"
+    description: "DOI of v0.1.0 snapshot"
 type: software
 keywords:
   - "evidence sufficiency"
