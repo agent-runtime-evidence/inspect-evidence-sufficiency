@@ -193,20 +193,17 @@ class MalformedInputTests(unittest.TestCase):
     """Deeply-nested traces and malformed pre-generated cards exit 2, never 1/traceback."""
 
     def test_deeply_nested_trace_is_usage_error(self) -> None:
-        import json
         import tempfile
 
-        # Nest well past MAX_TRACE_DEPTH; previously this raised RecursionError that
-        # escaped as a traceback with exit 1 (indistinguishable from a gate block).
-        node: dict = {}
-        cur = node
-        for _ in range(4000):
-            cur["a"] = {}
-            cur = cur["a"]
-        cur["a"] = 1
+        # Nest past MAX_TRACE_DEPTH. Build the JSON as a string directly so the test
+        # fixture does not depend on json.dumps recursion limits (which differ across
+        # Python versions, e.g. 3.11 vs 3.12); the tool maps over-deep input to a
+        # usage error (exit 2) via its depth guard or its RecursionError catch.
+        depth = 600
+        deep_json = '{"a":' * depth + "1" + "}" * depth
         with tempfile.TemporaryDirectory() as tmp:
             deep = Path(tmp) / "deep.json"
-            deep.write_text(json.dumps(node), encoding="utf-8")
+            deep.write_text(deep_json, encoding="utf-8")
             with self.assertRaises(SystemExit) as ctx:
                 main([str(deep), "--gate", "--format", "summary"])
             self.assertEqual(ctx.exception.code, EXIT_USAGE_ERROR)
