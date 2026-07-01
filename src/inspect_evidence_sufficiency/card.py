@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import re
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -10,6 +11,28 @@ from typing import Any
 from .extract import TraceFeatures, extract_features, load_trace
 
 STATUS_WEIGHT = {"present": 1.0, "partial": 0.5, "missing": 0.0}
+
+# A replay/trace handle that a machine can key on: a ``name:value`` identifier
+# (``replay:...``, ``trace:...``), an ``@digest`` / ``sha256:`` digest, a UUID,
+# or the extractor's hashed-text placeholder for a long opaque value. This is
+# deliberately NOT a free-text substring test: a prose sentence that merely
+# contains the word "true" or "deterministic" must not qualify, so a fabricated
+# free-text replay note cannot certify F09. Mirrors the honest floor F11 keeps.
+_STRUCTURED_HANDLE_RE = re.compile(
+    r"^(text_sha256:[0-9a-f]{8,}|sha256:[0-9a-f]{8,}|[a-z0-9][a-z0-9._-]*[:@][a-z0-9][a-z0-9._-]*"
+    r"|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$",
+    re.IGNORECASE,
+)
+
+
+def _has_structured_handle(refs: set[str]) -> bool:
+    """True if any ref is a machine-identifiable handle (id/digest/uuid), not prose.
+
+    Used to keep F09 at ``present`` only on a structured replay handle. A free-text
+    replay note (with spaces / a sentence) is not a handle and cannot lift F09 above
+    ``partial``.
+    """
+    return any(_STRUCTURED_HANDLE_RE.match(ref.strip()) for ref in refs)
 
 
 FIELD_LABELS = {
@@ -130,6 +153,8 @@ def build_card(
                 "Do not claim upstream acceptance unless a public upstream issue/PR is accepted.",
                 "Do not claim model, benchmark, or control-protocol safety.",
                 "Do not claim audit, compliance, or legal sufficiency.",
+                "Do not read F09/F10 as verified replay: they reflect a declared replay handle and "
+                "counterfactual claim at face value and are not executed or verified by this card.",
             ],
         },
     }
@@ -300,12 +325,23 @@ def _assess_fields(
         "Hidden instability can invalidate a clean-looking score.",
     )
 
-    if f.replay_refs and f.trace_ids and any("true" in r.lower() for r in f.replay_refs):
+    # F09 reaches `present` only on a STRUCTURED, machine-identifiable replay
+    # handle (a replay/trace id, digest, or uuid) — never on a free-text substring
+    # such as the word "true" inside a prose replay note. A fabricated free-text
+    # replay claim therefore stays `partial`, so it cannot certify reconstruction.
+    if _has_structured_handle(f.replay_refs) and (f.trace_ids or f.decision_ids):
         replay_status = "present"
-        replay_finding = "Trace/replay handle is visible with an explicit deterministic replay signal."
+        replay_finding = (
+            "A structured trace/replay handle (id or digest) is visible alongside a "
+            "trace/decision id. This reflects a declared replay handle at face value; "
+            "the card does not itself execute or verify a deterministic replay."
+        )
     elif f.replay_refs or f.trace_ids or f.decision_ids:
         replay_status = "partial"
-        replay_finding = "Trace, decision, or replay handles exist, but deterministic replay is not fully proven."
+        replay_finding = (
+            "Trace, decision, or replay handles exist, but no structured replay handle "
+            "establishes deterministic replay; free-text replay notes are not sufficient."
+        )
     else:
         replay_status = "missing"
         replay_finding = "No trace/replay handle was identified."
@@ -317,19 +353,20 @@ def _assess_fields(
         "Observed-run reconstruction is weaker than bit-faithful replay unless determinism is proven.",
     )
 
-    executed_counterfactual = [
-        r
-        for r in f.counterfactual_refs
-        if ("executed" in r.lower() or "result" in r.lower())
-        and "not_execut" not in r.lower()
-        and "not execut" not in r.lower()
-    ]
-    if executed_counterfactual:
-        cf_status = "present"
-        cf_finding = "Counterfactual replay evidence appears to include an execution/result."
-    elif f.counterfactual_refs:
+    # F10 is capped at `partial`: the extractor flattens a counterfactual entry to
+    # a bare string, so a genuine executed-outcome record cannot be cleanly told
+    # apart from a prose sentence that merely contains the words "executed"/"result".
+    # Rather than let free text certify F10, the honest floor is `partial` (mirroring
+    # F11) — the presence of a declared counterfactual is reported, never verified.
+    # `present` would require a structured, verified counterfactual-outcome surface
+    # this card does not yet consume.
+    if f.counterfactual_refs:
         cf_status = "partial"
-        cf_finding = "Counterfactual replay is specified or mentioned, but no executed result is visible."
+        cf_finding = (
+            "A counterfactual replay is declared or mentioned in the trace, but this "
+            "card neither executes nor verifies it; a declared executed result is "
+            "reported at face value and is not independently confirmed."
+        )
     else:
         cf_status = "missing"
         cf_finding = "No counterfactual replay evidence was identified."

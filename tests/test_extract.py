@@ -1,10 +1,15 @@
-"""Extractor hardening tests (P1-7): token matching + no empty-container over-count."""
+"""Extractor hardening tests: token matching, no empty-container over-count, bounded depth."""
 
 from __future__ import annotations
 
 import unittest
 
-from inspect_evidence_sufficiency.extract import _key_tokens, extract_features
+from inspect_evidence_sufficiency.extract import (
+    MAX_TRACE_DEPTH,
+    TraceTooDeepError,
+    _key_tokens,
+    extract_features,
+)
 
 
 class KeyTokenTests(unittest.TestCase):
@@ -47,6 +52,30 @@ class ExtractorResistsCosmeticKeysTests(unittest.TestCase):
         self.assertEqual(features.score_count, 0)
         self.assertEqual(features.tool_call_count, 0)
         self.assertEqual(features.error_count, 0)
+
+
+class BoundedDepthTests(unittest.TestCase):
+    def test_deeply_nested_input_raises_bounded_error_not_recursion(self) -> None:
+        # The iterative walk must raise a bounded TraceTooDeepError (a ValueError the
+        # CLI maps to exit 2), never a RecursionError traceback.
+        node: dict = {}
+        cur = node
+        for _ in range(MAX_TRACE_DEPTH + 50):
+            cur["a"] = {}
+            cur = cur["a"]
+        with self.assertRaises(TraceTooDeepError):
+            extract_features(node)
+
+    def test_moderately_nested_input_is_fine(self) -> None:
+        # Well within the cap: a normal-depth trace extracts without raising.
+        node: dict = {}
+        cur = node
+        for _ in range(50):
+            cur["events"] = [{}]
+            cur = cur["events"][0]
+        cur["model"] = "gpt-4o-2024-08-06"
+        features = extract_features(node)
+        self.assertIn("gpt-4o-2024-08-06", features.model_refs)
 
 
 if __name__ == "__main__":

@@ -5,8 +5,8 @@ authors:
   - family-names: "Solozobov"
     given-names: "Oleg"
     orcid: "https://orcid.org/0009-0009-0105-7459"
-version: "0.1.0"
-date-released: "2026-06-30"
+version: "0.2.0"
+date-released: "2026-07-01"
 license: Apache-2.0
 license-url: "https://www.apache.org/licenses/LICENSE-2.0"
 url: "https://github.com/agent-runtime-evidence/inspect-evidence-sufficiency"

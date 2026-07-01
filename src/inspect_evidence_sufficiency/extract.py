@@ -17,6 +17,17 @@ RESOLVED_MODEL_RE = re.compile(
 
 _TOKEN_RE = re.compile(r"[a-z0-9]+")
 
+# Maximum JSON nesting depth the extractor will traverse. Real Inspect /
+# ControlArena traces nest a few dozen levels at most; anything deeper is
+# pathological or adversarial input. Exceeding it raises ``TraceTooDeepError`` (a
+# ``ValueError``), which the CLI maps to a usage error (exit 2) — a clean, bounded
+# outcome instead of an unbounded traversal or a ``RecursionError`` traceback.
+MAX_TRACE_DEPTH = 512
+
+
+class TraceTooDeepError(ValueError):
+    """Raised when a trace nests deeper than ``MAX_TRACE_DEPTH``."""
+
 
 def _key_tokens(key: str) -> set[str]:
     """Split a JSON key into lowercased word tokens (snake_case + camelCase).
@@ -113,6 +124,12 @@ def load_trace(path: str | Path) -> tuple[Any, TraceFeatures]:
     else:
         data = json.loads(text)
         kind = "json-agent-trace"
+
+    if not isinstance(data, (dict, list)):
+        # A bare JSON scalar (null / number / string) is not a trace. Surface it as
+        # a usage error (exit 2 via the CLI's ValueError catch) rather than silently
+        # scoring an empty, insufficient card.
+        raise ValueError(f"trace top level must be a JSON object or array, not {type(data).__name__}")
 
     features = extract_features(data)
     features.source_path = str(p)
@@ -211,14 +228,29 @@ def extract_features(data: Any) -> TraceFeatures:
 
 
 def _walk(value: Any, path: tuple[str, ...] = ()) -> Iterable[tuple[tuple[str, ...], str, Any]]:
-    if isinstance(value, dict):
-        for k, v in value.items():
-            key = str(k)
-            yield path + (key,), key, v
-            yield from _walk(v, path + (key,))
-    elif isinstance(value, list):
-        for i, item in enumerate(value):
-            yield from _walk(item, path + (str(i),))
+    """Yield ``(path, key, value)`` for every dict key in a JSON-like structure.
+
+    Iterative (explicit stack) rather than recursive: a pathologically deep or
+    adversarial trace must not raise ``RecursionError``, which would otherwise
+    escape as a traceback and be indistinguishable from a gate block. Every dict
+    key is visited exactly once; downstream consumers accumulate into order-free
+    sets and counters, so the depth-first (siblings-before-descendants) visit
+    order is equivalent to the previous recursion.
+    """
+    stack: list[tuple[Any, tuple[str, ...]]] = [(value, path)]
+    while stack:
+        node, node_path = stack.pop()
+        if len(node_path) > MAX_TRACE_DEPTH:
+            raise TraceTooDeepError(f"trace nesting exceeds MAX_TRACE_DEPTH ({MAX_TRACE_DEPTH})")
+        if isinstance(node, dict):
+            for k, v in node.items():
+                key = str(k)
+                child_path = node_path + (key,)
+                yield child_path, key, v
+                stack.append((v, child_path))
+        elif isinstance(node, list):
+            for i, item in enumerate(node):
+                stack.append((item, node_path + (str(i),)))
 
 
 def _container_count(value: Any) -> int:
@@ -239,8 +271,16 @@ def _max_reasonable_count(data: Any, names: tuple[str, ...]) -> int:
     return max(total, 1)
 
 
-def _collect_named_ref(value: Any, target: set[str]) -> None:
-    if value is None:
+# Named-ref collection only descends into a fixed set of identifier keys and the
+# first few list items, so realistic traces nest a handful of levels at most. The
+# depth cap defends against an adversarial deep chain (e.g. dicts nested thousands
+# deep under an "id" key) so it degrades gracefully instead of raising
+# RecursionError; the CLI additionally maps any RecursionError to a usage error.
+_MAX_REF_DEPTH = 64
+
+
+def _collect_named_ref(value: Any, target: set[str], _depth: int = 0) -> None:
+    if value is None or _depth > _MAX_REF_DEPTH:
         return
     if isinstance(value, (str, int, float, bool)):
         text = str(value).strip()
@@ -270,11 +310,11 @@ def _collect_named_ref(value: Any, target: set[str]) -> None:
             "type",
         ):
             if key in value:
-                _collect_named_ref(value[key], target)
+                _collect_named_ref(value[key], target, _depth + 1)
         return
     if isinstance(value, list):
         for item in value[:5]:
-            _collect_named_ref(item, target)
+            _collect_named_ref(item, target, _depth + 1)
 
 
 def _short_text(value: Any) -> str:

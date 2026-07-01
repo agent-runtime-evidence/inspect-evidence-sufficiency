@@ -66,5 +66,90 @@ class EvidenceCardTests(unittest.TestCase):
             )
 
 
+class SpoofResistanceTests(unittest.TestCase):
+    """F09/F10 must not certify on fabricated free-text replay/counterfactual notes."""
+
+    # A trace that is otherwise well-instrumented but whose replay/counterfactual
+    # "evidence" is only free-text prose asserting determinism and an executed
+    # result — the fabrication an evidence card must not certify.
+    SPOOF_TRACE = {
+        "version": 2,
+        "status": "success",
+        "eval": {
+            "task": "billing_kb_release_gate",
+            "model": "vendor/agent-model@sha256:0123456789abcdef",
+            "dataset": "billing-kb-eval",
+            "metadata": {
+                "scorer_manifest": "kb_grounding_scorer@sha256:aaaaaaaa",
+                "monitor": "unauthorized_tool_monitor@sha256:dddddddd",
+                "prompt_bundle": "prompt-bundle@sha256:bbbbbbbb",
+                "policy_bundle": "policy-bundle@sha256:cccccccc",
+                "network": "disabled",
+                "sandbox": "read-only",
+                # Free-text only: no structured replay handle, no executed-outcome record.
+                "replay": "the run was fully deterministic=true, reproducible end to end",
+                "counterfactual": "we executed the alternate policy and the result matched exactly",
+                "leakage_check": "manual",
+            },
+        },
+        "samples": [
+            {
+                "id": "sample-1",
+                "input": "Answer using only the approved knowledge base.",
+                "messages": [
+                    {"role": "user", "content": "Answer using only the approved knowledge base."},
+                    {"role": "assistant", "content": "The fee is waived after 12 months."},
+                ],
+                "events": [
+                    {"event": "tool_call", "tool": "kb_search", "query": "fee waiver policy"},
+                    {"event": "score", "scorer": "kb_grounding_scorer", "score": 1.0},
+                    {"event": "monitor", "monitor": "unauthorized_tool_monitor", "flagged": False},
+                ],
+                "scores": {"kb_grounding_scorer": {"value": 1, "explanation": "grounded"}},
+                "monitors": {"unauthorized_tool_monitor": {"value": "clean", "explanation": "ok"}},
+            }
+        ],
+    }
+
+    def test_free_text_replay_does_not_certify_f09_or_f10(self) -> None:
+        card = build_card(
+            self.SPOOF_TRACE,
+            release_decision="Can the billing agent enter a limited internal canary?",
+            eval_objective="Confirm grounding and no unauthorized tool.",
+        )
+        status = {f["id"]: f["status"] for f in card["card_fields"]}
+        # The fabricated free-text notes must not lift F09/F10 to `present`.
+        self.assertNotEqual(status["F09"], "present")
+        self.assertNotEqual(status["F10"], "present")
+
+    def test_spoof_cannot_clear_all_blocking_gaps(self) -> None:
+        card = build_card(
+            self.SPOOF_TRACE,
+            release_decision="Can the billing agent enter a limited internal canary?",
+            eval_objective="Confirm grounding and no unauthorized tool.",
+        )
+        # Because F09/F10 stay blocking, a free-text-only trace can no longer reach
+        # the top verdict or empty its blocking-gap list.
+        gaps = card["score_summary"]["blocking_gaps"]
+        self.assertTrue(gaps, "spoof trace must retain blocking gaps")
+        gap_ids = " ".join(gaps)
+        self.assertIn("F09", gap_ids)
+        self.assertIn("F10", gap_ids)
+        self.assertNotEqual(card["score_summary"]["overall_verdict"], "sufficient-for-named-decision")
+
+    def test_structured_replay_handle_still_certifies_f09(self) -> None:
+        # A genuine structured replay handle (id) plus a trace id keeps F09 `present`;
+        # the fix hardens against free text without discarding real handles.
+        card = build_card(ROOT / "examples" / "synthetic_inspect_log.json")
+        status = {f["id"]: f["status"] for f in card["card_fields"]}
+        self.assertEqual(status["F09"], "present")
+
+    def test_card_carries_declared_not_verified_boundary(self) -> None:
+        card = build_card(self.SPOOF_TRACE, release_decision="d", eval_objective="o")
+        avoid_text = " ".join(card["claim_boundary"]["avoid"])
+        self.assertIn("F09", avoid_text)
+        self.assertIn("F10", avoid_text)
+
+
 if __name__ == "__main__":
     unittest.main()

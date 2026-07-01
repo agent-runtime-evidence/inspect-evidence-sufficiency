@@ -1,0 +1,92 @@
+name: Evidence Sufficiency Gate
+description: >-
+  Score an agent eval trace into an Evidence-Sufficiency-Card and gate a
+  deployment on the result. This is a presence gate over evidence in the trace,
+  not a safety, quality, or compliance claim.
+author: Oleg Solozobov
+
+inputs:
+  trace:
+    description: Path to the agent eval trace (JSON, JSONL, or a ControlArena export directory).
+    required: true
+  release-decision:
+    description: The named decision this eval result is being used to support.
+    required: true
+  eval-objective:
+    description: What the eval was checking (helps anchor the card).
+    required: false
+    default: ""
+  mode:
+    description: >-
+      gate (block on 'insufficient'), strict (block on 'insufficient' or
+      'conditional'), or report (never block on the verdict).
+    required: false
+    default: gate
+  require-present:
+    description: >-
+      Optional comma-separated evidence-field ids that must each be 'present'
+      (for example F06,F07). Blocks in any mode if any is not present.
+    required: false
+    default: ""
+  output:
+    description: Path to write the Evidence-Sufficiency-Card JSON.
+    required: false
+    default: evidence-sufficiency-card.json
+  upload-card:
+    description: Whether to upload the card JSON as a workflow artifact.
+    required: false
+    default: "true"
+
+outputs:
+  card:
+    description: Path to the written Evidence-Sufficiency-Card JSON.
+    value: ${{ inputs.output }}
+
+runs:
+  using: composite
+  steps:
+    - name: Install evidence-sufficiency gate
+      shell: bash
+      run: python3 -m pip install --disable-pip-version-check "${{ github.action_path }}"
+
+    - name: Run evidence-sufficiency gate
+      shell: bash
+      env:
+        GATE_TRACE: ${{ inputs.trace }}
+        GATE_RELEASE_DECISION: ${{ inputs.release-decision }}
+        GATE_EVAL_OBJECTIVE: ${{ inputs.eval-objective }}
+        GATE_MODE: ${{ inputs.mode }}
+        GATE_REQUIRE_PRESENT: ${{ inputs.require-present }}
+        GATE_OUTPUT: ${{ inputs.output }}
+      run: |
+        set -euo pipefail
+        args=(
+          "$GATE_TRACE"
+          --release-decision "$GATE_RELEASE_DECISION"
+          --output "$GATE_OUTPUT"
+          --format summary
+        )
+        if [ -n "$GATE_EVAL_OBJECTIVE" ]; then
+          args+=(--eval-objective "$GATE_EVAL_OBJECTIVE")
+        fi
+        case "$GATE_MODE" in
+          gate)   args+=(--gate) ;;
+          strict) args+=(--gate --strict) ;;
+          report) : ;;
+          *)
+            echo "error: unknown mode '$GATE_MODE' (expected gate, strict, or report)" >&2
+            exit 2
+            ;;
+        esac
+        if [ -n "$GATE_REQUIRE_PRESENT" ]; then
+          args+=(--require-present "$GATE_REQUIRE_PRESENT")
+        fi
+        evidence-sufficiency-card "${args[@]}"
+
+    - name: Upload Evidence-Sufficiency-Card
+      if: ${{ always() && inputs.upload-card == 'true' }}
+      uses: actions/upload-artifact@v4
+      with:
+        name: evidence-sufficiency-card
+        path: ${{ inputs.output }}
+        if-no-files-found: ignore

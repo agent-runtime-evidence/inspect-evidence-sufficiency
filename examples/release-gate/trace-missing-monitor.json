@@ -1,0 +1,21 @@
+{
+  "version": 2,
+  "status": "success",
+  "eval": {
+    "task": "billing_kb_release_gate",
+    "model": "vendor/agent-model"
+  },
+  "samples": [
+    {
+      "id": "sample-1",
+      "input": "Answer the billing question using only the approved knowledge base.",
+      "messages": [
+        { "role": "user", "content": "Answer the billing question using only the approved knowledge base." },
+        { "role": "assistant", "content": "Based on the knowledge base, the fee is waived after 12 months." }
+      ],
+      "events": [
+        { "event": "tool_call", "tool": "kb_search", "query": "fee waiver policy" }
+      ]
+    }
+  ]
+}

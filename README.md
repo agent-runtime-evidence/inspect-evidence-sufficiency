@@ -59,6 +59,53 @@ PYTHONPATH=src python3 -m inspect_evidence_sufficiency path/to/controlarena-expo
   --output out/controlarena-card.json
 ```
 
+## Deployment Gate
+
+The same CLI can act as a CI deployment gate: it prints the card as before, and its **exit code** carries the block/pass signal so a workflow can stop a ship when the evidence is not there. Reporting stays the default — without `--gate` the CLI always exits `0`, so adding it to a pipeline changes nothing until you opt in.
+
+- `--gate` — exit `1` when the verdict is `insufficient` (blocks the deployment); `conditional` and `sufficient-for-named-decision` pass.
+- `--gate --strict` — also exit `1` on `conditional`; only `sufficient-for-named-decision` passes.
+- `--require-present F06,F07,...` — exit `1` if any listed evidence field is not `present`, in any mode. Field ids are validated against the card's real F01–F12 set; an unknown id is a usage error (exit `2`).
+
+| mode                  | insufficient | conditional | sufficient-for-named-decision |
+| --------------------- | ------------ | ----------- | ----------------------------- |
+| default (no `--gate`) | 0            | 0           | 0                             |
+| `--gate`              | 1            | 0           | 0                             |
+| `--gate --strict`     | 1            | 1           | 0                             |
+
+Exit `2` is reserved for tool/usage errors — an unparseable trace, bad arguments, or an unknown field id — and is always distinguishable from a gate block (exit `1`), so a CI job can tell "the gate said no" apart from "the tool could not run".
+
+```bash
+# Block a deploy unless the trace clears the presence bar and records a monitor.
+PYTHONPATH=src python3 -m inspect_evidence_sufficiency path/to/log.json \
+  --release-decision "Can this agent build enter a limited internal canary?" \
+  --eval-objective "Confirm answers are grounded and no unauthorized tool was used." \
+  --gate --require-present F07
+echo $?   # 0 = pass, 1 = blocked, 2 = tool/usage error
+```
+
+A runnable before/after walkthrough (a raw trace that fails the gate, and the eval-instrumented version that passes) is in [`examples/release-gate/`](examples/release-gate/).
+
+### GitHub Action
+
+A composite action at the repo root wraps the gate for CI. It installs the package, scores the trace, uploads the card JSON as an artifact, and fails the step when the gate blocks:
+
+```yaml
+- uses: agent-runtime-evidence/inspect-evidence-sufficiency@v0.2.0
+  with:
+    trace: path/to/eval-log.json
+    release-decision: "Can this agent build enter a limited internal canary?"
+    eval-objective: "Confirm answers are grounded and no unauthorized tool was used."
+    mode: gate            # gate | strict | report (default: gate)
+    require-present: F07  # optional; comma-separated evidence-field ids
+```
+
+Inputs: `trace` (required), `release-decision` (required), `eval-objective`, `mode` (default `gate`), `require-present`, `output` (card path, default `evidence-sufficiency-card.json`), `upload-card` (default `true`). The step's success/failure mirrors the CLI exit code, so a blocked gate fails the job.
+
+### Gate boundary
+
+This is a **presence gate**: it blocks when required evidence is missing or the evidence a trace carries is insufficient to support a named decision. It is **not** a safety, quality, or compliance claim, and a pass does **not** approve a release. A pass means only that the evidence present in the trace clears the configured presence bar; the release decision itself remains a human one, subject to normal review.
+
 ## Optional Inspect Scorer
 
 The package is stdlib-first. If `inspect-ai` is installed, the optional scorer can be used from `inspect_evidence_sufficiency.inspect_adapter`:
@@ -146,4 +193,4 @@ See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the design constraints (stdlib-firs
 
 Licensed under the Apache License 2.0 — see [`LICENSE`](LICENSE).
 
-If you use this in research, cite the software artifact via [`CITATION.cff`](CITATION.cff) (GitHub renders a "Cite this repository" entry; Zenodo reads the same file). A concept and per-version DOI are minted on the first tagged release via the Zenodo–GitHub integration; the DOI block is added to `CITATION.cff` at that point.
+If you use this in research, cite the software artifact via [`CITATION.cff`](CITATION.cff) (GitHub renders a "Cite this repository" entry; Zenodo reads the same file). A concept DOI (which always resolves to the latest release) and per-version snapshot DOIs are recorded in `CITATION.cff`; the Zenodo–GitHub integration mints a fresh snapshot DOI on each tagged release.
