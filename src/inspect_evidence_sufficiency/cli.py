@@ -37,27 +37,29 @@ from pathlib import Path
 from typing import Any
 
 from .card import FIELD_LABELS, build_card, summarize_card
+from .gatelib import (
+    EXIT_GATE_BLOCKED,
+    EXIT_OK,
+    EXIT_USAGE_ERROR,
+    GateUsageError,
+    verdict_line,
+)
+
+# Re-exported so existing importers (and tests) can keep importing the exit-code
+# constants and GateUsageError from this module; the definitions live in gatelib,
+# shared with the monitor-coverage gate.
+__all__ = ["EXIT_GATE_BLOCKED", "EXIT_OK", "EXIT_USAGE_ERROR", "GateUsageError", "main"]
 
 # Top-level keys a passed-through pre-generated card must carry for the CLI to
 # summarize and gate on it without recomputation. A card that claims the schema
 # but lacks these is malformed input, not a gate block.
 REQUIRED_CARD_KEYS = ("score_summary", "card_fields")
 
-# Reserved exit codes. Kept distinct so a CI job can tell a gate block (1) from a
-# tool/usage error (2).
-EXIT_OK = 0
-EXIT_GATE_BLOCKED = 1
-EXIT_USAGE_ERROR = 2
-
 # Verdict strings owned by card.py. Re-derived here for the gate mapping only; the
 # card itself remains the source of truth for how a verdict is assigned.
 VERDICT_INSUFFICIENT = "insufficient"
 VERDICT_CONDITIONAL = "conditional"
 VERDICT_SUFFICIENT = "sufficient-for-named-decision"
-
-
-class GateUsageError(Exception):
-    """A tool/usage error that must surface as exit code 2, not a gate block."""
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -213,15 +215,7 @@ def _gate_exit_code(card: dict[str, Any], mode: str, require_present: list[str])
 
 def _verdict_line(card: dict[str, Any], mode: str, exit_code: int, reason: str) -> str:
     verdict = card.get("score_summary", {}).get("overall_verdict", "")
-    if exit_code != EXIT_OK:
-        # A block always reports as a block with its real exit code and reason,
-        # even in reporting mode where a --require-present failure (not --gate)
-        # is what set the non-zero exit. Otherwise the printed line would say
-        # "report-only (exit 0)" while the process exits 1.
-        return f"gate: BLOCK (exit {exit_code}) | {reason}"
-    if mode == "report":
-        return f"gate: report-only (exit 0) | verdict: {verdict}"
-    return f"gate: PASS (exit 0) | {reason}"
+    return verdict_line(verdict, mode, exit_code, reason)
 
 
 def _read_json(path: Path) -> Any:

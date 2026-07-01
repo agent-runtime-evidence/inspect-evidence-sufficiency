@@ -2,6 +2,20 @@
 
 All notable changes to this project are documented here. The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-07-01
+
+### Added
+
+- Monitor-Coverage-Card (`monitor-coverage-card.v0`) and a sibling `monitor-coverage-card` console script. Where the Evidence-Sufficiency-Card asks whether a scorer/monitor identity is *present* (F07), this card asks whether an identified monitor actually *scored the assistant turns that executed the risky tools*. Over the run's assistant turns, coverage = (risky tool turns carrying a suspicion score from an identified monitor) / (risky tool turns); the card reports `monitor_identity`, `coverage_ratio`, `uncovered_spans`, and a `covered` / `partial-coverage` / `uncovered` verdict.
+- `--gate` (and its alias `--require-covered`) on the coverage CLI: exit `1` unless the verdict is `covered`. `--risky-tools transfer,delete,...` names the team-owned risky set (default: every tool-bearing turn). The card prints to stdout, the `gate:` line to stderr, and the gate shares the exit-code contract with the evidence-sufficiency gate (`0` pass / reporting, `1` block, `2` tool/usage error) — now factored into a shared `gatelib` module.
+- Core "monitor-coverage trace" input shape (stdlib): a JSON/JSONL list of messages, or `{"monitor", "messages"}`, where the per-turn `suspicion_score` is co-located on the same `assistant` message as its `tool_calls`. A monitor scores the assistant turn, not each call.
+- Optional `[inspect]` reader (`inspect_coverage`, imported only when used) that maps a real `.eval` log's `ChatMessageAssistant` messages (`tool_calls` + `metadata.suspicion_score` + monitor identity from `sample.scores` / `eval.metadata`) into the core shape via `inspect_ai.log.read_eval_log`; `monitor-coverage-card path/to/log.eval` uses it when the extra is installed. The per-turn scores are stripped by the ControlArena trajectory export, so the reader goes to the `.eval` log directly.
+- Monitor-coverage example (`examples/monitor-coverage/`): a covered trace that passes the gate and an uncovered one (a `transfer` / `delete_record` turn with no suspicion score) that blocks it.
+
+### Notes
+
+- Coverage is not accuracy: the card checks whether an identified monitor *observed* (scored) the risky tool turn, not whether its judgment was correct. It is not a claim that ControlArena or any monitor is broken — a normal run scores every turn and cards as `covered`; the gap appears under partial / sampled / post-hoc monitoring or when a trace names a monitor but carries no per-turn scores. A `covered` verdict is a coverage/presence check, not a safety, quality, correctness, or compliance claim, and does not approve a release.
+
 ## [0.2.0] - 2026-07-01
 
 ### Added

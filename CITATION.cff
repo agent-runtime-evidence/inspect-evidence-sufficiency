@@ -1,11 +1,11 @@
 cff-version: 1.2.0
 message: "If you use inspect-evidence-sufficiency in your research, please cite this software artifact."
-title: "inspect-evidence-sufficiency: An Evidence-Sufficiency-Card scorer for Inspect/ControlArena-style agent eval traces"
+title: "inspect-evidence-sufficiency: Evidence-Sufficiency-Card and Monitor-Coverage-Card scorers for Inspect/ControlArena-style agent eval traces"
 authors:
   - family-names: "Solozobov"
     given-names: "Oleg"
     orcid: "https://orcid.org/0009-0009-0105-7459"
-version: "0.2.0"
+version: "0.3.0"
 date-released: "2026-07-01"
 license: Apache-2.0
 license-url: "https://www.apache.org/licenses/LICENSE-2.0"
@@ -22,6 +22,7 @@ identifiers:
 type: software
 keywords:
   - "evidence sufficiency"
+  - "monitor coverage"
   - "agent eval"
   - "Inspect"
   - "ControlArena"
@@ -41,6 +42,9 @@ abstract: >-
   messages/events/tool calls, scorer and monitor identity, retries/errors,
   transcript and replay handle, counterfactual replay, leakage and
   reward-hacking checks, and an explicit not-sufficient-for statement) into a
-  conservative verdict. The artifact is evidence-bound: it reports which
+  conservative verdict. A companion Monitor-Coverage-Card asks a sharper
+  question — whether an identified monitor actually scored the assistant turns
+  that executed the risky tools (coverage, distinct from whether the monitor was
+  correct) — and gates on it. The artifact is evidence-bound: it reports which
   evidence a trace contains, never model quality, benchmark validity, safety, or
   audit/compliance sufficiency.

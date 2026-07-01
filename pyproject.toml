@@ -4,14 +4,15 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "inspect-evidence-sufficiency"
-version = "0.2.0"
-description = "Evidence-Sufficiency-Card scorer and adapters for Inspect/ControlArena-style agent eval traces."
+version = "0.3.0"
+description = "Evidence-Sufficiency-Card and Monitor-Coverage-Card scorers and adapters for Inspect/ControlArena-style agent eval traces."
 readme = "README.md"
 requires-python = ">=3.11,<4"
 license = "Apache-2.0"
 authors = [{ name = "Oleg Solozobov" }]
 keywords = [
     "evidence sufficiency",
+    "monitor coverage",
     "agent eval",
     "inspect",
     "controlarena",
@@ -43,6 +44,7 @@ Issues = "https://github.com/agent-runtime-evidence/inspect-evidence-sufficiency
 
 [project.scripts]
 evidence-sufficiency-card = "inspect_evidence_sufficiency.cli:main"
+monitor-coverage-card = "inspect_evidence_sufficiency.coverage_cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

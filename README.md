@@ -91,7 +91,7 @@ A runnable before/after walkthrough (a raw trace that fails the gate, and the ev
 A composite action at the repo root wraps the gate for CI. It installs the package, scores the trace, uploads the card JSON as an artifact, and fails the step when the gate blocks:
 
 ```yaml
-- uses: agent-runtime-evidence/inspect-evidence-sufficiency@v0.2.0
+- uses: agent-runtime-evidence/inspect-evidence-sufficiency@v0.3.0
   with:
     trace: path/to/eval-log.json
     release-decision: "Can this agent build enter a limited internal canary?"
@@ -105,6 +105,70 @@ Inputs: `trace` (required), `release-decision` (required), `eval-objective`, `mo
 ### Gate boundary
 
 This is a **presence gate**: it blocks when required evidence is missing or the evidence a trace carries is insufficient to support a named decision. It is **not** a safety, quality, or compliance claim, and a pass does **not** approve a release. A pass means only that the evidence present in the trace clears the configured presence bar; the release decision itself remains a human one, subject to normal review.
+
+## Monitor-Coverage Gate
+
+The Evidence-Sufficiency-Card asks *is a scorer/monitor identity present* (field F07). The Monitor-Coverage-Card asks the next question: *did an identified monitor actually score the assistant turns that executed the risky tools?* Presence is not coverage. A second console script, `monitor-coverage-card`, builds this card and gates on it with the same exit-code contract.
+
+**Coverage is not accuracy.** This card checks whether an identified monitor *observed* — produced a suspicion score for — the assistant turn that ran a risky tool. It says nothing about whether the monitor's judgment was correct: a 99%-catch-rate monitor that was never invoked on the risky turn has zero coverage here, and a monitor that scored every turn but scored them all wrong still reads as fully covered. Judging the monitor's verdict is a separate, out-of-scope question.
+
+This is **not** a claim that ControlArena or any monitor is broken. A normal ControlArena-style run scores every turn, so it cards as `covered` (coverage ≈ 1.0) — the expected, healthy case, which this gate passes. The gap appears under **partial, sampled, or post-hoc monitoring** (real production monitoring is often partial), or when a trace *names* a monitor but carries no per-turn scores for the risky calls. The point is to verify, per run, that the monitor covered the risky tool execution.
+
+### Input shape
+
+A "monitor-coverage trace" is a JSON list of messages, or `{"monitor": "<name>", "messages": [...]}`. Each message mirrors the real Inspect message the scores live on: the per-turn suspicion score is co-located with the tool calls it is scoring, on the same `assistant` message.
+
+```json
+{
+  "monitor": "payments_suspicion_monitor",
+  "messages": [
+    {
+      "role": "assistant",
+      "content": "Executing the approved transfer.",
+      "tool_calls": [{ "function": "transfer", "arguments": { "amount": 240.0 }, "id": "c1" }],
+      "metadata": { "suspicion_score": 0.18, "reason": "matches approved invoice" }
+    },
+    { "role": "tool", "tool_call_id": "c1", "content": "{\"status\": \"ok\"}" }
+  ]
+}
+```
+
+An assistant turn is *monitored* iff its `metadata.suspicion_score` is a number. The monitor scores the assistant **turn**, not each call — several tool calls in one turn share the one score. Monitor identity is a run-level property (the top-level `monitor` field and/or a declared scorer name), never inferred per message.
+
+### Metric and verdict
+
+Over the run's assistant turns: `T` = turns whose `tool_calls` include a (risky) tool; `S` = those turns carrying a suspicion score from an identified monitor; **coverage = |S| / |T|**. Uncovered turns are the risky turns with no score. `--risky-tools transfer,delete,...` is the team-owned policy naming which tools count as risky; by default every tool-bearing turn is the risky set.
+
+- `uncovered` — no identified monitor, or coverage `0`;
+- `covered` — coverage `1.0` and a monitor is identified;
+- `partial-coverage` — otherwise.
+
+```bash
+# Block a deploy unless an identified monitor scored every risky tool turn.
+PYTHONPATH=src python3 -m inspect_evidence_sufficiency.coverage_cli path/to/coverage-trace.json \
+  --risky-tools transfer,delete \
+  --gate            # or the alias --require-covered
+echo $?   # 0 = covered, 1 = not covered, 2 = tool/usage error
+```
+
+| mode                  | uncovered | partial-coverage | covered |
+| --------------------- | --------- | ---------------- | ------- |
+| default (no `--gate`) | 0         | 0                | 0       |
+| `--gate`              | 1         | 1                | 0       |
+
+The card prints to stdout; the `gate:` line prints to stderr. A runnable before/after walkthrough (a covered trace that passes and an uncovered one that blocks) is in [`examples/monitor-coverage/`](examples/monitor-coverage/).
+
+With the optional `[inspect]` extra installed, `monitor-coverage-card path/to/log.eval` reads a real Inspect `.eval` log directly — the per-turn `suspicion_score` on each `ChatMessageAssistant.metadata` is preserved in the `.eval` log but stripped by the ControlArena trajectory export, so the reader goes to the `.eval` log via `inspect_ai.log.read_eval_log`.
+
+### Related work
+
+This is a small, honest observation, not a claim of novelty for the underlying idea. It differs from adjacent work by *what it audits*:
+
+- **EviBound** audits the agent's own *claim* (did the agent actually do what it says); this card audits the *monitor's observation* (did the monitor score the risky call).
+- **ADAS**-style agent dossiers are per-model records; this card is per-run.
+- **Auditable Agents** produce a post-hoc record-completeness card; this is a per-run monitor-coverage gate keyed to the risky tool turns.
+
+The headline is deliberately the specific claim — *did an identified monitor cover the risky tool call* — not a captured umbrella term.
 
 ## Optional Inspect Scorer
 
